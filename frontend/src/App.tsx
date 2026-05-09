@@ -11,6 +11,7 @@ import { Interfaces } from './pages/Interfaces';
 import { Settings } from './pages/Settings';
 import { AiStudio } from './pages/AiStudio';
 import { AgentStudio } from './pages/AgentStudio';
+import { DataWheel } from './pages/DataWheel';
 import { ObjectExplorer } from './pages/ObjectExplorer';
 import { OntologyRules } from './pages/OntologyRules';
 import { EventMonitor } from './pages/EventMonitor';
@@ -32,6 +33,7 @@ export const ROUTES = {
   functions: '/functions',
   events: '/events',
   agents: '/agents',
+  datawheel: '/datawheel',
   settings: '/settings',
 } as const;
 
@@ -48,6 +50,7 @@ const PATH_TO_TAB: Record<string, string> = {
   '/functions': 'functions',
   '/events': 'events',
   '/agents': 'agents',
+  '/datawheel': 'datawheel',
   '/settings': 'settings',
 };
 
@@ -189,6 +192,11 @@ function AppContent() {
         <Route path="/agents" element={
           <PageWrapper ontology={ontology} setOntology={setOntology} loading={loading} error={error}>
             <AgentStudio key={currentProjectId} />
+          </PageWrapper>
+        } />
+        <Route path="/datawheel" element={
+          <PageWrapper ontology={ontology} setOntology={setOntology} loading={loading} error={error}>
+            <DataWheel data={ontology} />
           </PageWrapper>
         } />
         <Route path="/settings" element={

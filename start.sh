@@ -94,20 +94,30 @@ cleanup() {
 
 trap cleanup SIGINT SIGTERM
 
+# Kill any existing processes on our ports to avoid conflicts
+echo "Checking for existing processes on ports 8080, 3001, 3000..."
+for PORT in 8080 3001 3000; do
+    PID=$(lsof -ti :$PORT 2>/dev/null)
+    if [ -n "$PID" ]; then
+        echo "  Killing process $PID on port $PORT..."
+        kill $PID 2>/dev/null
+        sleep 1
+    fi
+done
+echo ""
+
 # Start Java Backend
 echo "═══════════════════════════════════════════════════════════════"
 echo "Starting Java Backend (Spring Boot)..."
 echo "═══════════════════════════════════════════════════════════════"
 cd backend
 
-# Check if jar exists, if not build it
-if [ ! -f "target/ontology-backend-1.0.0.jar" ]; then
-    echo "Building Java backend..."
-    mvn clean package -DskipTests
-    if [ $? -ne 0 ]; then
-        echo -e "${RED}Error: Failed to build Java backend${NC}"
-        exit 1
-    fi
+# Always rebuild to ensure latest code is used
+echo "Building Java backend (mvn clean package)..."
+mvn clean package -DskipTests -q
+if [ $? -ne 0 ]; then
+    echo -e "${RED}Error: Failed to build Java backend${NC}"
+    exit 1
 fi
 
 # Run Java backend with custom tmpdir

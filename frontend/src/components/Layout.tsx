@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Database, Boxes, Link as LinkIcon, Network, Settings, Search, Bell, UserCircle, PlayCircle, Save, CheckCircle2, Sparkles, Bot, Building2, Compass, Code, ChevronDown, ChevronRight, Shield, Newspaper } from 'lucide-react';
+import { LayoutDashboard, Database, Boxes, Link as LinkIcon, Network, Settings, Search, Bell, UserCircle, PlayCircle, Save, CheckCircle2, Sparkles, Bot, Building2, Compass, Code, ChevronDown, ChevronRight, Shield, Newspaper, RefreshCw } from 'lucide-react';
 import { cn } from '@/src/lib/utils';
 import { Button } from '@/src/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/src/components/ui/popover';
@@ -38,6 +38,7 @@ const navItems = [
   ]},
   { id: 'events', label: '事件监测', icon: Newspaper },
   { id: 'agents', label: 'AI工坊', icon: Bot },
+  { id: 'datawheel', label: '数据飞轮', icon: RefreshCw },
   { id: 'settings', label: '设置', icon: Settings },
 ];
 

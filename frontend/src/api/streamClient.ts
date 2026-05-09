@@ -13,6 +13,8 @@ export interface StreamMessage {
   ontology?: any;
   error?: string;
   fullContent?: string;
+  json?: any;
+  parseError?: string;
 }
 
 // AI工作室流式对话
@@ -31,6 +33,60 @@ export async function* streamConversation(
       sessionId,
       includeCurrentOntology,
     }),
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(error);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const data = line.slice(6);
+          if (data) {
+            try {
+              const parsed = JSON.parse(data);
+              yield parsed;
+            } catch (e) {
+              // Ignore parse errors
+            }
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// 数据飞轮本体抽取流式输出
+export async function* streamOntologyExtraction(
+  title: string,
+  content: string
+): AsyncGenerator<StreamMessage, void, unknown> {
+  const response = await fetch('/api/data-wheel/extract', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title, content }),
   });
 
   if (!response.ok) {

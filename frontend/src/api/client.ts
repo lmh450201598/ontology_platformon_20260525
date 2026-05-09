@@ -704,6 +704,19 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(data),
     }),
+
+  // ── Data Wheel ──────────────────────────────────────────────────────────────
+  analyzeOntology: (extracted: any, existing: any) =>
+    request<{ success: boolean; analysis: any }>('/data-wheel/analyze', {
+      method: 'POST',
+      body: JSON.stringify({ extracted, existing }),
+    }),
+
+  executeSql: (sql: string) =>
+    request<{ success: boolean; results: any[]; error?: string; executedCount?: number; successCount?: number; errorCount?: number }>('/data-wheel/execute', {
+      method: 'POST',
+      body: JSON.stringify({ sql }),
+    }),
 };
 
 // Notification type definition

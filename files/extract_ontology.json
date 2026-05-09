@@ -1,0 +1,58 @@
+{
+    "objectType": [
+        {
+            "name_cn": "电芯",
+            "name_en": "battery cell",
+            "parentObjectTypeName": "零部件",
+            "description": ""
+        },
+        {
+            "name_cn": "三元",
+            "name_en": "ternary",
+            "parentObjectTypeName": "正极材料",
+            "description": ""
+        },
+        {
+            "name_cn": "新能源整车",
+            "name_en": "new energy vehicle",
+            "parentObjectTypeName": null,
+            "description": ""
+        }
+    ],
+    "linkTypeAndInstance": [
+        {
+            "name": "公司生产新能源整车",
+            "sourceObjectType": "公司",
+            "targetObjectType": "新能源整车",
+            "linkTypeCategory": "生产",
+            "description": "",
+            "instanceList": [
+                {
+                    "sourceInstance": "比亚迪股份有限公司",
+                    "targetInstance": "秦PLUS 2025款 DM-i 智驾版 55KM领先型"
+                },
+                {
+                    "sourceInstance": "北京车和家信息技术有限公司",
+                    "targetInstance": "理想 L9‌"
+                }
+            ]
+        },
+        {
+            "name": "公司生产碳酸锂",
+            "sourceObjectType": "公司",
+            "targetObjectType": "碳酸锂",
+            "linkTypeCategory": "生产",
+            "description": "",
+            "instanceList": [
+                {
+                    "sourceInstance": "天齐锂业股份有限公司",
+                    "targetInstance": "电池级碳酸锂"
+                },
+                {
+                    "sourceInstance": "江西赣锋锂业集团股份有限公司",
+                    "targetInstance": "电池级碳酸锂"
+                }
+            ]
+        }
+    ]
+}
