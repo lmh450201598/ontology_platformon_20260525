@@ -13,6 +13,7 @@ import { AiStudio } from './pages/AiStudio';
 import { AgentStudio } from './pages/AgentStudio';
 import { DataWheel } from './pages/DataWheel';
 import { ObjectExplorer } from './pages/ObjectExplorer';
+import AiChat from './pages/AiChat';
 import { OntologyRules } from './pages/OntologyRules';
 import { EventMonitor } from './pages/EventMonitor';
 import { OntologyData } from './store/ontologyStore';
@@ -34,6 +35,7 @@ export const ROUTES = {
   events: '/events',
   agents: '/agents',
   datawheel: '/datawheel',
+  aichat: '/aichat',
   settings: '/settings',
 } as const;
 
@@ -51,6 +53,7 @@ const PATH_TO_TAB: Record<string, string> = {
   '/events': 'events',
   '/agents': 'agents',
   '/datawheel': 'datawheel',
+  '/aichat': 'aichat',
   '/settings': 'settings',
 };
 
@@ -199,6 +202,7 @@ function AppContent() {
             <DataWheel data={ontology} />
           </PageWrapper>
         } />
+        <Route path="/aichat" element={<AiChat />} />
         <Route path="/settings" element={
           <PageWrapper ontology={ontology} setOntology={setOntology} loading={loading} error={error}>
             <Settings />

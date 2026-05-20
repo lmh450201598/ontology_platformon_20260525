@@ -4,12 +4,15 @@
 # 
 # Architecture:
 #   Frontend (React) -> BFF (Node.js) -> Java Backend (Spring Boot) -> MySQL
+#                                        -> MCP Client (Python) -> MCP Server (Spring AI) -> MySQL/Neo4j
 #
 # Ports:
 #   - Frontend Dev Server: 3000
 #   - BFF Server: 3001
 #   - Java Backend: 8080
 #   - MySQL: 3306
+#   - MCP Server (Spring AI): 8081
+#   - MCP Client (Python): 8001
 
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║     Ontology Management System - Java EE Architecture       ║"
@@ -81,6 +84,14 @@ cleanup() {
         kill $JAVA_PID 2>/dev/null
         echo "  Java backend stopped"
     fi
+    if [ -n "$MCP_PID" ]; then
+        kill $MCP_PID 2>/dev/null
+        echo "  MCP Server stopped"
+    fi
+    if [ -n "$MCP_CLIENT_PID" ]; then
+        kill $MCP_CLIENT_PID 2>/dev/null
+        echo "  MCP Client stopped"
+    fi
     if [ -n "$BFF_PID" ]; then
         kill $BFF_PID 2>/dev/null
         echo "  BFF stopped"
@@ -95,8 +106,8 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Kill any existing processes on our ports to avoid conflicts
-echo "Checking for existing processes on ports 8080, 3001, 3000..."
-for PORT in 8080 3001 3000; do
+echo "Checking for existing processes on ports 8080, 8081, 8001, 3001, 3000..."
+for PORT in 8080 8081 8001 3001 3000; do
     PID=$(lsof -ti :$PORT 2>/dev/null)
     if [ -n "$PID" ]; then
         echo "  Killing process $PID on port $PORT..."
@@ -140,6 +151,49 @@ for i in {1..60}; do
         cleanup
     fi
 done
+
+echo ""
+
+# Start MCP Server (Spring AI)
+echo "═══════════════════════════════════════════════════════════════"
+echo "Starting MCP Server (Spring AI)..."
+echo "═══════════════════════════════════════════════════════════════"
+cd backend/mcp-server
+
+# Build MCP Server
+echo "Building MCP Server (mvn clean package)..."
+mvn clean package -DskipTests -q
+if [ $? -ne 0 ]; then
+    echo -e "${YELLOW}Warning: Failed to build MCP Server. Skipping...${NC}"
+else
+    java -jar target/mcp-server-1.0.0.jar &
+    MCP_PID=$!
+    echo "  MCP Server starting on port 8081 (PID: $MCP_PID)"
+fi
+cd ../..
+
+echo ""
+
+# Start MCP Client (Python LangChain Agent)
+echo "═══════════════════════════════════════════════════════════════"
+echo "Starting MCP Client (Python LangChain)..."
+echo "═══════════════════════════════════════════════════════════════"
+cd mcp-client
+
+if [ -f "requirements.txt" ]; then
+    if [ ! -d ".venv" ]; then
+        echo "Creating Python virtual environment..."
+        uv venv --python 3.12
+    fi
+    echo "Installing Python dependencies..."
+    uv pip install -r requirements.txt
+    if [ -f ".env" ]; then
+        source .venv/bin/activate && python main.py &
+        MCP_CLIENT_PID=$!
+        echo "  MCP Client starting on port 8001 (PID: $MCP_CLIENT_PID)"
+    fi
+fi
+cd ..
 
 echo ""
 
@@ -213,9 +267,11 @@ echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
 echo "║                    All Services Started!                     ║"
 echo "╠══════════════════════════════════════════════════════════════╣"
-echo "║  Frontend:  http://localhost:3000                            ║"
-echo "║  BFF:       http://localhost:3001                            ║"
-echo "║  Java API:  http://localhost:8080                            ║"
+echo "║  Frontend:    http://localhost:3000                          ║"
+echo "║  BFF:         http://localhost:3001                          ║"
+echo "║  Java API:    http://localhost:8080                          ║"
+echo "║  MCP Server:  http://localhost:8081 (Spring AI)             ║"
+echo "║  MCP Client:  http://localhost:8001 (LangChain Agent)       ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
 echo "Press Ctrl+C to stop all services"

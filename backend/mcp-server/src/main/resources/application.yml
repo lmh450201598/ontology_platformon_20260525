@@ -1,0 +1,27 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: ontology-mcp-server
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/ontology?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: 12345678
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: ontology-mcp-server
+        version: 1.0.0
+
+neo4j:
+  uri: bolt://localhost:7687
+  user: neo4j
+  password: password
+
+logging:
+  level:
+    com.ontology.mcp: debug
+    org.springframework.ai: info

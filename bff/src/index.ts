@@ -37,7 +37,8 @@ app.use('/api', (req, res, next) => {
     path.startsWith('/function-types') ||
     path.startsWith('/neo4j/') ||
     path.startsWith('/event-tracking/') ||
-    path.startsWith('/data-wheel/')
+    path.startsWith('/data-wheel/') ||
+    path.startsWith('/knowledge-chat')
   ) {
     return next();
   }
@@ -56,6 +57,7 @@ import functionTypeRoutes from './routes/function-types.js';
 import neo4jRoutes from './routes/neo4j.js';
 import eventTrackingRoutes from './routes/event-tracking.js';
 import dataWheelRoutes from './routes/data-wheel.js';
+import knowledgeChatRoutes from './routes/knowledge-chat.js';
 import { initNeo4j, closeNeo4j } from './neo4j.js';
 
 // Body parsers only for AI routes
@@ -75,6 +77,8 @@ app.use('/api/event-tracking', express.json({ limit: '10mb' }));
 app.use('/api/event-tracking', eventTrackingRoutes);
 app.use('/api/data-wheel', express.json({ limit: '10mb' }));
 app.use('/api/data-wheel', dataWheelRoutes);
+app.use('/api/knowledge-chat', express.json({ limit: '10mb' }));
+app.use('/api/knowledge-chat', knowledgeChatRoutes);
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ── Static Files (Frontend) ───────────────────────────────────────────────────

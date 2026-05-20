@@ -570,7 +570,7 @@ export function GraphView({ data, onUpdate }: { data: OntologyData; onUpdate?: (
     }),
   [data.objectTypes, categoryFilter]);
 
-  const [isOperationMode, setIsOperationMode] = useState(true);
+  const [isOperationMode, setIsOperationMode] = useState(false);
 
   // Auto-save layouts (position + size) on drag/resize
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -771,9 +771,9 @@ export function GraphView({ data, onUpdate }: { data: OntologyData; onUpdate?: (
                 ? "bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100"
                 : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
             )}
-            title={isOperationMode ? '当前为操作态，可拖动节点和调整区域框大小' : '当前为只读态，仅可缩放和移动画布'}
+            title={isOperationMode ? '当前为编辑态，可拖动节点和调整区域框大小' : '当前为只读态，仅可缩放和移动画布'}
           >
-            {isOperationMode ? '操作态' : '只读态'}
+            {isOperationMode ? '编辑态' : '只读态'}
           </button>
           <div className="flex items-center gap-1.5 text-slate-500">
             <Database className="w-3.5 h-3.5 text-blue-500" />
