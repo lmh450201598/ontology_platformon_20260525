@@ -16,7 +16,7 @@ dotenv.load_dotenv()
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model, Field
 
 from mcp import ClientSession
 from mcp.client.sse import sse_client
@@ -32,35 +32,45 @@ logger = logging.getLogger("mcp-client")
 # ── Configuration ───────────────────────────────────────────────────────────────
 
 DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8081/mcp/message")
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8081/sse")
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8001"))
 
 # ── MCP Client ──────────────────────────────────────────────────────────────────
 
 class MCPClient:
-    """Manages a long-lived MCP SSE connection to the Spring AI MCP Server."""
+    """Manages an MCP SSE connection to the Spring AI MCP Server with auto-reconnect."""
 
-    def __init__(self):
+    def __init__(self, url: str):
+        self.url = url
         self.session: Optional[ClientSession] = None
         self._transport_ctx = None
         self._session_ctx = None
         self.tools_meta = []
 
+    async def connect(self):
+        """Connect (or reconnect) to the MCP server."""
+        # Try to create a new connection; don't touch self.session until success
+        transport_ctx = sse_client(self.url)
+        transport = await transport_ctx.__aenter__()
+        session_ctx = ClientSession(transport[0], transport[1])
+        session = await session_ctx.__aenter__()
+        await session.initialize()
+        tools_result = await session.list_tools()
+        # Only update instance state on success
+        # Discard old session references (don't await __aexit__ — it fails in a different task context)
+        self._transport_ctx = transport_ctx
+        self._session_ctx = session_ctx
+        self.session = session
+        self.tools_meta = tools_result.tools
+        logger.info(f"MCP Client connected to {self.url}")
+        logger.info(f"Available tools: {[t.name for t in self.tools_meta]}")
+
     @classmethod
     async def create(cls, url: str):
         """Factory method: creates and initializes the MCP client."""
-        client = cls()
-        client._transport_ctx = sse_client(url)
-        transport = await client._transport_ctx.__aenter__()
-        client._session_ctx = ClientSession(transport[0], transport[1])
-        client.session = await client._session_ctx.__aenter__()
-        await client.session.initialize()
-        # Fetch available tools
-        tools_result = await client.session.list_tools()
-        client.tools_meta = tools_result.tools
-        logger.info(f"MCP Client connected to {url}")
-        logger.info(f"Available tools: {[t.name for t in client.tools_meta]}")
+        client = cls(url)
+        await client.connect()
         return client
 
     async def close(self):
@@ -71,10 +81,30 @@ class MCPClient:
         logger.info("MCP Client disconnected")
 
     async def call_tool(self, name: str, arguments: dict) -> str:
-        """Call an MCP tool and return the text result."""
+        """Call an MCP tool and return the text result. Auto-reconnects on connection error."""
         if not self.session:
-            raise RuntimeError("MCP session not initialized")
-        result = await self.session.call_tool(name, arguments)
+            self.session = None  # ensure clean state
+            logger.info("No active MCP session, attempting connection...")
+            await self.connect()
+            if not self.session:
+                raise RuntimeError("MCP session not initialized")
+
+        try:
+            result = await self.session.call_tool(name, arguments)
+        except Exception as e:
+            if "ClosedResourceError" in type(e).__name__ or "closed" in str(e).lower():
+                logger.warning(f"MCP connection lost, reconnecting... ({e})")
+                try:
+                    await self.connect()
+                    result = await self.session.call_tool(name, arguments)
+                except Exception as re:
+                    logger.error(f"Reconnection failed: {re}")
+                    raise RuntimeError(
+                        f"MCP server is unavailable. Please try again later."
+                    ) from re
+            else:
+                raise
+
         if result.content and len(result.content) > 0:
             # Extract text from TextContent objects
             texts = []
@@ -120,73 +150,56 @@ def build_agent(client: MCPClient):
         streaming=False,
     )
 
-    # ── Define LangChain tools wrapping MCP tools ───────────────────────────
+    # ── Dynamically create tools from MCP server metadata ───────────────
 
-    async def _query_concept_graph(keyword: str = "", projectId: str = "project_public") -> str:
-        """查询本体概念图谱（Concept Graph），根据关键词搜索对象类型（Object Type）、属性（Property）和链接类型（Link Type）的定义信息。
-        关键词为空时返回所有概念。返回的数据包括对象类型列表、属性详情和链接关系定义。"""
-        return await client.call_tool("query_concept_graph", {
-            "keyword": keyword,
-            "projectId": projectId,
-        })
+    type_map = {"string": str, "integer": int, "number": float, "boolean": bool}
 
-    async def _query_instance_graph(
-        objectTypeName: str = "",
-        keyword: str = "",
-        projectId: str = "project_public",
-        maxDepth: int = 2,
-    ) -> str:
-        """查询实例图谱（Instance Graph），搜索某个对象类型下的实例数据及其关联关系。
-        支持关键词搜索实例内容，并支持指定遍历深度（maxDepth）来探索关联的上下游实例。
-        返回包含实例节点（nodes）和关系边（edges）的图谱数据。"""
-        return await client.call_tool("query_instance_graph", {
-            "objectTypeName": objectTypeName,
-            "keyword": keyword,
-            "projectId": projectId,
-            "maxDepth": maxDepth,
-        })
+    tools = []
+    for meta in client.tools_meta:
+        field_defs = {}
+        input_schema = meta.inputSchema or {}
+        for prop_name, prop_schema in input_schema.get("properties", {}).items():
+            py_type = type_map.get(prop_schema.get("type", "string"), str)
+            if "default" in prop_schema:
+                field_defs[prop_name] = (py_type, Field(default=prop_schema["default"]))
+            else:
+                field_defs[prop_name] = (Optional[py_type], Field(default=None))
 
-    tools = [
-        StructuredTool.from_function(
-            coroutine=_query_concept_graph,
-            name="query_concept_graph",
-            description="查询本体概念图谱（Concept Graph），根据关键词搜索对象类型、属性和链接类型的定义信息。关键词为空时返回所有概念。",
-        ),
-        StructuredTool.from_function(
-            coroutine=_query_instance_graph,
-            name="query_instance_graph",
-            description="查询实例图谱（Instance Graph），搜索某个对象类型下的实例数据及其关联关系。支持关键词搜索和遍历深度控制。",
-        ),
-    ]
+        DynamicModel = create_model(f"{meta.name}_input", **field_defs)
+
+        async def _dynamic_call(tool_name=meta.name, **kwargs) -> str:
+            # Filter out None values so the server uses its defaults
+            filtered = {k: v for k, v in kwargs.items() if v is not None}
+            return await client.call_tool(tool_name, filtered)
+
+        tool = StructuredTool(
+            name=meta.name,
+            description=meta.description or "",
+            args_schema=DynamicModel,
+            coroutine=_dynamic_call,
+        )
+        tools.append(tool)
 
     # ── System prompt ───────────────────────────────────────────────────────
 
-    system_prompt = """你是一个本体图谱专家助手。
-你有两个强大的工具可以帮助用户查询和探索本体图谱数据：
+    tool_descriptions = "\n".join(
+        f"{i+1}. {t.name} - {t.description}"
+        for i, t in enumerate(client.tools_meta)
+    )
 
-1. query_concept_graph - 查询本体概念图谱（元数据）
-   - 用于搜索对象类型（如：公司、产品、订单等业务实体）
-   - 搜索属性定义（如：名称、价格、状态等字段）
-   - 搜索链接类型（实体之间的关联关系定义）
-   - 可以传入关键词进行模糊搜索
+    system_prompt = f"""你是一个本体图谱专家助手。
+你有以下工具可以帮助用户查询和探索本体图谱数据：
 
-2. query_instance_graph - 查询实例图谱（实际数据）
-   - 用于搜索某个对象类型下的具体实例数据
-   - 可以搜索实例之间的关联关系网络
-   - 支持控制遍历深度来探索更多关联数据
+{tool_descriptions}
 
 请根据用户的问题，选择合适的工具来回答。
-- 如果用户问的是关于"有什么对象类型"、"有什么属性"、"实体之间有什么关系"等结构性问题，使用 query_concept_graph
-- 如果用户问的是关于"具体数据"、"某家公司"、"某个产品的实例"、"数据之间的关系"等数据性问题，使用 query_instance_graph
-- 用户可以先用 query_concept_graph 了解数据结构，再用 query_instance_graph 查询具体数据
-
 请用中文回答，并尽量详细地展示查询到的数据。对于 JSON 格式的返回结果，请整理成易于阅读的格式展示给用户。"""
 
     agent = create_agent(
         model=llm,
         tools=tools,
         system_prompt=system_prompt,
-        debug=True,
+        debug=False,
     )
     return agent
 
@@ -264,8 +277,10 @@ async def chat(request: ChatRequest):
         return ChatResponse(session_id=session_id, response=response_text)
 
     except Exception as e:
-        logger.error(f"Agent error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"Agent error: {e}\n{tb}")
+        raise HTTPException(status_code=500, detail=str(e) or repr(e))
 
 if __name__ == "__main__":
     import uvicorn
