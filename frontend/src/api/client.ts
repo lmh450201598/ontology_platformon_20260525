@@ -717,6 +717,43 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ sql }),
     }),
+
+  // ── Neo4j Sync ────────────────────────────────────────────────
+  syncNeo4jObjectTypes: () =>
+    request<{ success: boolean; message: string; stats: { created: number; subtypes: number } }>('/neo4j/sync/object-types', {
+      method: 'POST',
+    }),
+
+  syncNeo4jLinkTypes: () =>
+    request<{ success: boolean; message: string; stats: { created: number } }>('/neo4j/sync/link-types', {
+      method: 'POST',
+    }),
+
+  syncNeo4jInstances: (objectTypeId: string) =>
+    request<{ success: boolean; message: string; stats: { created: number; tableName: string | null } }>(`/neo4j/sync/instances/${objectTypeId}`, {
+      method: 'POST',
+    }),
+
+  syncNeo4jLinkInstances: (linkTypeId: string) =>
+    request<{ success: boolean; message: string; stats: { created: number; missing: number } }>(`/neo4j/sync/link-instances/${linkTypeId}`, {
+      method: 'POST',
+    }),
+
+  syncNeo4jAll: (clearFirst: boolean = false) =>
+    request<{ success: boolean; message: string; summary: any }>('/neo4j/sync/all', {
+      method: 'POST',
+      body: JSON.stringify({ clearFirst }),
+    }),
+
+  neo4jOverview: () =>
+    request<{ success: boolean; data: { nodes: any; relationships: any } }>('/neo4j/overview', {
+      method: 'GET',
+    }),
+
+  clearNeo4j: () =>
+    request<{ success: boolean; message: string }>('/neo4j/clear', {
+      method: 'DELETE',
+    }),
 };
 
 // Notification type definition
